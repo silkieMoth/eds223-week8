@@ -1,0 +1,82 @@
+---
+title: "rasters_n_function"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(sf)
+library(terra)
+library(dismo)
+library(tmap)
+```
+
+```{r}
+
+magpie <- read_csv(here::here("data", "magpie_obvs.csv"))
+tule_elk <- read_csv(here::here("data", "tule_elk_obvs.csv"))
+
+bioclim_dir <- here::here("data", "climate", "wc2.1_2.5m")
+bioclim <- list.files(bioclim_dir, pattern = glob2rx("*.tif$"), full.names = TRUE)
+bioclim_rast <- rast(bioclim)
+```
+
+```{r}
+names(bioclim_rast) <- c('annual_mean_temp',
+                         'mean_tenp_warmest_quarter',
+                         'mean_temp_coldest_quarter',
+                         'annual_precip',
+                         'precip_wettest_month',
+                         'precip_driest_month',
+                         'precip_seasonality',
+                         'precip_wettest_quarter',
+                         'precip_driest_quarter',
+                         'precip_warmest_quarter',
+                         'precip_coldest_quarter',
+                         'mean_diurnal_range',
+                         'isothermality',
+                         'temp_seaonality',
+                         'max_tem_warmest_month',
+                         'min_temp_coldest_month',
+                         'temp_annual_range',
+                         'mean_temp_wettest_quarter',
+                         'mean_temp_driest_quarter')
+
+names(bioclim_rast)
+```
+```{r}
+magpie <- magpie %>%
+  rename(long = longitude,
+         lat = latitude) %>%
+  drop_na(any_of(c('long', 'lat'))) %>%
+  st_as_sf(coords = c('long', 'lat'))
+
+magpie_bbox <- magpie %>% st_bbox()
+```
+
+```{r}
+bioclim_cropped <- terra::crop(bioclim_rast, magpie_bbox)
+```
+
+```{r}
+magpie_points <- extract(bioclim_cropped, magpie)
+```
+
+```{r}
+bg_values <- dismo::randomPoints(mask = raster(bioclim_cropped[[1]]),
+                                 n = nrow(magpie_points),
+                                 ext = magpie_bbox)
+
+```
+
+```{r}
+bioclim_random_pts <- extract(bioclim_cropped, bg_values)
+```
+
+```{r}
+ggplot() + 
+  geom_point(magpie_points, mapping = aes(x = annual_mean_temp, y = precip_coldest_quarter)) +
+  geom_point(bg_values, mapping = aes(x = x, y = y))
+```
+
